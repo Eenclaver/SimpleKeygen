@@ -11,11 +11,11 @@ cd license-server
 docker-compose up --build
 ```
 
-# Сервер будет доступен на http://localhost:8088
+### Сервер будет доступен на http://localhost:8088
 
 # 📋 API Endpoints
 
-1. 🆕 Генерация лицензионного ключа
+## 1. 🆕 Генерация лицензионного ключа
 
 POST /api/generate
 
@@ -47,12 +47,12 @@ POST /api/generate
 }
 ```
 
-2. ✅ Валидация лицензионного ключа
+## 2. ✅ Валидация лицензионного ключа
 POST /api/validate
 
 Проверяет валидность лицензионного ключа для указанного продукта.
 
-📥 Input:
+### 📥 Input:
 ```json
 {
   "license_key": "KEY-1A2B3C4D-5E6F7G8H-9I0J1K2L",
@@ -60,7 +60,7 @@ POST /api/validate
 }
 ```
 
-📤 Output (валидный ключ):
+### 📤 Output (валидный ключ):
 ```json
 {
   "valid": true,
@@ -70,7 +70,7 @@ POST /api/validate
 }
 ```
 
-📤 Output (невалидный ключ):
+### 📤 Output (невалидный ключ):
 ```json
 {
   "valid": false,
@@ -78,13 +78,13 @@ POST /api/validate
 }
 ```
 
-3. 📊 Статус сервера
+## 3. 📊 Статус сервера
 
 GET /api/health
 
 Проверяет работоспособность сервера и подключения к БД.
 
-📤 Output:
+### 📤 Output:
 ```json
 {
   "status": "healthy",
@@ -94,64 +94,49 @@ GET /api/health
 }
 ```
 
-🏗️ Архитектура
+# ⚙️ Конфигурация
 
-┌─────────────────┐    HTTP    ┌─────────────────┐
-│   Client App    │───────────▶│  License Server │
-│                 │◀───────────│    (C++ REST)   │
-└─────────────────┘            └─────────┬───────┘
-                                         │
-                                         │ DB Queries
-                                         │
-                         ┌───────────────┴───────────────┐
-                         │                               │
-                         ▼                               ▼
-┌─────────────────┐            ┌─────────────────┐            ┌─────────────────┐
-│   Redis Cache   │◀──────────│   PostgreSQL    │──────────▶ │   Data Storage  │
-│   (кэш ключей)  │──────────▶│   (основная БД) │            │     (Volume)    │
-└─────────────────┘            └─────────────────┘            └─────────────────┘
+## Environment Variables
 
-⚙️ Конфигурация
+|  Переменная |	По умолчанию |         Описание        |
+|-------------|--------------|-------------------------|
+| DB_HOST	    |     db	     | Хост PostgreSQL         |
+| DB_PORT	    |    5438	     | Внешний порт PostgreSQL |
+| DB_NAME	    |    changeme	 | Имя базы данных         |
+| DB_USER	    |   changeme	 | Пользователь БД         |
+| DB_PASS	    |  changeme	   | Пароль БД               |
+| REDIS_HOST	|    redis	   | Хост Redis              |
+| REDIS_PORT	|    6378	     | Внешний порт Redis      |
 
-Environment Variables
-Переменная	По умолчанию	Описание
-DB_HOST	        db	        Хост PostgreSQL
-DB_PORT	        5438	    Внешний порт PostgreSQL
-DB_NAME	       changeme	    Имя базы данных
-DB_USER	       changeme	    Пользователь БД
-DB_PASS	       changeme	    Пароль БД
-REDIS_HOST	    redis	    Хост Redis
-REDIS_PORT	    6378	    Внешний порт Redis
+## Формат лицензионных ключей
 
-Формат лицензионных ключей
 Ключи генерируются в формате:
+
 KEY-XXXX-XXXX-XXXX-XXXX-XXXX
 
 Где:
+* KEY- - префикс
+* XXXX - 4 случайных hex-символа (0-9, A-F)
+* Всего 25 символов (включая дефисы)
 
-KEY- - префикс
+# 📊 База данных
 
-XXXX - 4 случайных hex-символа (0-9, A-F)
+## Структура таблицы licenses
 
-Всего 25 символов (включая дефисы)
+|       Поле       |      Тип	     |              Описание            |
+|------------------|---------------|----------------------------------|
+| id	             |   SERIAL	     |  Primary key                     |
+| key	             |  VARCHAR(255) |	 Лицензионный ключ (уникальный) |
+| product_id	     |  VARCHAR(100) | 	Идентификатор продукта          |
+| user_id	         |  VARCHAR(100) | 	Идентификатор пользователя      |
+| created_at	     |  TIMESTAMP	   | Дата создания                    |
+| expires_at	     |  TIMESTAMP	   | Дата окончания действия          |
+| is_active	       |  BOOLEAN	     |   Активна ли лицензия            |
+| activation_count |  INTEGER	     |   Количество активаций           |
 
-📊 База данных
+# 🔧 Примеры использования
 
-Структура таблицы licenses
-
-Поле	            Тип	            Описание
-id	                SERIAL	        Primary key
-key	                VARCHAR(255)	Лицензионный ключ (уникальный)
-product_id	        VARCHAR(100)	Идентификатор продукта
-user_id	            VARCHAR(100)	Идентификатор пользователя
-created_at	        TIMESTAMP	    Дата создания
-expires_at	        TIMESTAMP	    Дата окончания действия
-is_active	        BOOLEAN	        Активна ли лицензия
-activation_count    INTEGER	        Количество активаций
-
-🔧 Примеры использования
-
-Генерация ключа:
+## Генерация ключа:
 
 ```bash
 curl -X POST http://localhost:8080/api/generate \
@@ -163,7 +148,7 @@ curl -X POST http://localhost:8080/api/generate \
   }'
 ```
 
-Проверка ключа:
+## Проверка ключа:
 
 ```bash
 curl -X POST http://localhost:8080/api/validate \
@@ -174,17 +159,14 @@ curl -X POST http://localhost:8080/api/validate \
   }'
 ```
 
-Проверка здоровья:
+## Проверка здоровья:
 
 ```bash
 curl http://localhost:8080/api/health
 ```
 # 🛡️ Безопасность
 
-Все ключи хранятся в зашифрованной базе данных
-
-Redis кэш автоматически очищается через 1 час
-
-Поддержка HTTPS (нуждается в дополнительной настройке)
-
-Валидация входных данных
+* Все ключи хранятся в зашифрованной базе данных
+* Redis кэш автоматически очищается через 1 час
+* Поддержка HTTPS (нуждается в дополнительной настройке)
+* Валидация входных данных
