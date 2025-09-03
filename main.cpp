@@ -11,7 +11,9 @@
 using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
-
+/**
+ * 
+ */
 class LicenseServer {
 private:
     http_listener listener;
