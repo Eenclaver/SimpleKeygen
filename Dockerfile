@@ -2,15 +2,25 @@
 FROM ubuntu:22.04 AS builder
 
 RUN apt-get update && apt-get install -y \
+    libpqxx-dev \
+    gcc \
     g++ \
-    cmake \
     make \
-    libpq-dev \
+    cmake \
+    libc6-dev \
+    pkg-config \
+    libpq5 \
+    libcpprest-dev \
     libhiredis-dev \
     libssl-dev \
-    libpqxx-dev \
     libboost-all-dev \
-    libcpprest-dev \
+    libhiredis0.14 \
+    libssl3 \
+    libcpprest2.10 \
+    libboost-system1.74.0 \
+    libboost-program-options-dev \
+    libboost-random1.74.0 \
+    libboost-thread1.74.0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -26,6 +36,12 @@ FROM debian:12-slim
 # Устанавливаем только необходимые runtime пакеты
 RUN apt-get update && apt-get install -y \
     libpqxx-dev \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    libc6-dev \
+    pkg-config \
     libpq5 \
     libcpprest-dev \
     libhiredis-dev \
@@ -35,7 +51,7 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     libcpprest2.10 \
     libboost-system1.74.0 \
-    libboost-program-options1.74.0 \
+    libboost-program-options-dev \
     libboost-random1.74.0 \
     libboost-thread1.74.0 \
     && apt-get clean \
@@ -49,5 +65,5 @@ COPY --from=builder --chown=appuser:appgroup /build/build/license_server .
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 8088
 CMD ["./license_server"]

@@ -8,6 +8,9 @@ set(CMAKE_BUILD_TYPE Release)
 find_path(CPPREST_INCLUDE_DIR cpprest/http_listener.h)
 find_library(CPPREST_LIBRARY cpprest)
 
+find_path(BOOST_INCLUDE_DIR libboost/libboost )
+find_library(BOOST_LIBRARY libboost )
+
 find_path(PQXX_INCLUDE_DIR libpqxx/libpqxx )
 find_library(PQXX_LIBRARY libpqxx )
 
@@ -15,8 +18,16 @@ if (NOT PQXX_INCLUDE_DIR)
     set(PQXX_INCLUDE_DIR "/usr/include")
 endif()
 
+if (NOT BOOST_INCLUDE_DIR)
+    set(PQXX_INCLUDE_DIR "/usr/include")
+endif()
+
 if (NOT PQXX_LIBRARY)
     set(PQXX_LIBRARY "/usr/lib/x86_64-linux-gnu/libpqxx.so")
+endif()
+
+if (NOT BOOST_LIBRARY)
+    set(BOOST_LIBRARY "/usr/lib/x86_64-linux-gnu/libboost.so")
 endif()
 
 message(STATUS "PQXX include dir: ${PQXX_INCLUDE_DIR}")
@@ -39,17 +50,15 @@ find_library(BOOST_ATOMIC_LIB boost_atomic)
 find_library(BOOST_DATE_TIME_LIB boost_date_time)
 find_library(BOOST_REGEX_LIB boost_regex)
 find_library(BOOST_PROGRAM_OPTIONS_LIB boost_program_options)
-
-
-if (NOT BOOST_UUID_LIB)
-    set(BOOST_UUID_LIB "/usr/lib/x86_64-linux-gnu/boostid.so")
-endif()
-
 message(STATUS "PQXX include dir: ${PQXX_INCLUDE_DIR}")
 message(STATUS "PQXX library: ${PQXX_LIBRARY}")
 
 if (NOT CPPREST_LIBRARY)
     message(FATAL_ERROR "cpprest library not found")
+endif()
+
+if (NOT BOOST_LIBRARY)
+    message(FATAL_ERROR "boost library not found")
 endif()
 
 if (NOT PQXX_LIBRARY)
@@ -74,7 +83,7 @@ target_link_libraries(license_server PRIVATE
     ${PQXX_LIBRARY}
     ${HIREDIS_LIBRARY}
     ${BOOST_SYSTEM_LIB}
-    ${BOOST_UUID_LIB}
+#    ${BOOST_UUID_LIB}
     ${BOOST_RANDOM_LIB}
     ${BOOST_THREAD_LIB}
     ${BOOST_FILESYSTEM_LIB}
