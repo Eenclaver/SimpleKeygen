@@ -1,174 +1,50 @@
-#include <iostream>
-#include <cpprest/http_listener.h>
-#include <cpprest/json.h>
-#include <pqxx/pqxx>
-#include <hiredis/hiredis.h>
-#include <openssl/sha.h>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
+#include "LicenseServer.cpp"
 
-using namespace web;
-using namespace web::http;
-using namespace web::http::experimental::listener;
-/**
- * 
- */
-class LicenseServer {
-private:
-    http_listener listener;
-    std::string db_connection_string;
-
-    std::string generate_license_key(const std::string& product_id, const std::string& user_id) {
-        boost::uuids::uuid uuid = boost::uuids::random_generator()();
-        std::string uuid_str = boost::uuids::to_string(uuid);
+int main(){
+  try {
+        std::cout << "Initializing License Server..." << std::endl;
         
-        // Создаем хеш на основе UUID, product_id и user_id
-        std::string data = product_id + ":" + user_id + ":" + uuid_str;
+        // Получаем настройки из переменных окружения
+        std::string db_host = get_env("DB_HOST", "db");
+        std::string db_port = get_env("DB_PORT", "5432");
+        std::string db_name = get_env("DB_NAME", "licenses");
+        std::string db_user = get_env("DB_USER", "admin");
+        std::string db_pass = get_env("DB_PASS", "secretpassword");
         
-        unsigned char hash[SHA256_DIGEST_LENGTH];
-        SHA256_CTX sha256;
-        SHA256_Init(&sha256);
-        SHA256_Update(&sha256, data.c_str(), data.size());
-        SHA256_Final(hash, &sha256);
+        std::string redis_host = get_env("REDIS_HOST", "redis");
+        std::string redis_port_str = get_env("REDIS_PORT", "6379");
+        int redis_port = std::stoi(redis_port_str);
         
-        // Конвертируем в hex строку
-        char hex_hash[65];
-        for(int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-            sprintf(hex_hash + (i * 2), "%02x", hash[i]);
+        // Формируем строку подключения к БД
+        std::string db_connection_string = 
+            "postgresql://" + db_user + ":" + db_pass + "@" + 
+            db_host + ":" + db_port + "/" + db_name;
+        
+        std::cout << "Database connection: " << db_connection_string << std::endl;
+        std::cout << "Redis connection: " << redis_host << ":" << redis_port << std::endl;
+        
+        // Создаем и запускаем сервер
+        LicenseServer server("http://0.0.0.0:8088", db_connection_string, redis_host, redis_port);
+        
+        std::cout << "Server created, opening..." << std::endl;
+        server.open().wait();
+        
+        std::cout << "License Server is running on http://0.0.0.0:8088" << std::endl;
+        std::cout << "Endpoints:" << std::endl;
+        std::cout << "  POST /api/generate" << std::endl;
+        std::cout << "  POST /api/validate" << std::endl;
+        std::cout << "  GET  /api/health" << std::endl;
+        std::cout << "Press Ctrl+C to stop..." << std::endl;
+        
+        // Бесконечный цикл чтобы сервер не завершался
+        while(true) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
-        hex_hash[64] = 0;
-        
-        // Берем первые 20 символов и форматируем
-        std::string key = "KEY-";
-        for(int i = 0; i < 20; i += 4) {
-            key += std::string(hex_hash + i, 4);
-            if(i < 16) key += "-";
-        }
-        
-        return key;
-    }
-
-    void handle_generate(http_request request) {
-        request.extract_json().then([=](json::value request_json) {
-            try {
-                std::string product_id = request_json.at("product_id").as_string();
-                std::string user_id = request_json.at("user_id").as_string();
-                std::string expires_at = request_json.at("expires_at").as_string();
-
-                // Генерируем ключ
-                std::string license_key = generate_license_key(product_id, user_id);
-
-                // Сохраняем в PostgreSQL
-                pqxx::connection conn(db_connection_string);
-                pqxx::work txn(conn);
-                txn.exec_params(
-                    "INSERT INTO licenses (key, product_id, user_id, expires_at, is_active) "
-                    "VALUES ($1, $2, $3, $4, true)",
-                    license_key, product_id, user_id, expires_at
-                );
-                txn.commit();
-
-                // Кэшируем в Redis
-                redisContext *redis = redisConnect("redis", 6379);
-                if (redis != NULL && !redis->err) {
-                    std::string redis_key = "license:" + license_key;
-                    redisCommand(redis, "SET %s %s EX 3600", 
-                                redis_key.c_str(), "active");
-                    redisFree(redis);
-                }
-
-                // Возвращаем ответ
-                json::value response;
-                response["license_key"] = json::value::string(license_key);
-                response["status"] = json::value::string("created");
-
-                request.reply(status_codes::OK, response);
-
-            } catch (const std::exception& e) {
-                json::value error;
-                error["error"] = json::value::string(e.what());
-                request.reply(status_codes::BadRequest, error);
-            }
-        });
-    }
-
-    void handle_validate(http_request request) {
-        request.extract_json().then([=](json::value request_json) {
-            try {
-                std::string license_key = request_json.at("license_key").as_string();
-                std::string product_id = request_json.at("product_id").as_string();
-
-                // Сначала проверяем в Redis
-                redisContext *redis = redisConnect("redis", 6379);
-                if (redis != NULL && !redis->err) {
-                    std::string redis_key = "license:" + license_key;
-                    redisReply *reply = (redisReply*)redisCommand(
-                        redis, "GET %s", redis_key.c_str());
-                    
-                    if (reply != NULL && reply->type == REDIS_REPLY_STRING) {
-                        redisFree(redis);
-                        
-                        json::value response;
-                        response["valid"] = json::value::boolean(true);
-                        response["cached"] = json::value::boolean(true);
-                        request.reply(status_codes::OK, response);
-                        return;
-                    }
-                    redisFree(redis);
-                }
-
-                // Если нет в кэше, проверяем в PostgreSQL
-                pqxx::connection conn(db_connection_string);
-                pqxx::work txn(conn);
-                pqxx::result result = txn.exec_params(
-                    "SELECT expires_at, is_active FROM licenses "
-                    "WHERE key = $1 AND product_id = $2",
-                    license_key, product_id
-                );
-
-                json::value response;
-                if (!result.empty()) {
-                    auto row = result[0];
-                    std::string expires_at = row["expires_at"].as<std::string>();
-                    bool is_active = row["is_active"].as<bool>();
-
-                    // Проверяем срок действия
-                    // TODO: Добавить проверку даты
-
-                    response["valid"] = json::value::boolean(is_active);
-                    response["expires_at"] = json::value::string(expires_at);
-                } else {
-                    response["valid"] = json::value::boolean(false);
-                }
-
-                request.reply(status_codes::OK, response);
-
-            } catch (const std::exception& e) {
-                json::value error;
-                error["error"] = json::value::string(e.what());
-                request.reply(status_codes::BadRequest, error);
-            }
-        });
-    }
-
-public:
-    LicenseServer(const std::string& url, const std::string& db_conn_str) 
-        : listener(url), db_connection_string(db_conn_str) {
-        
-        listener.support(methods::POST, 
-            [=](http_request request) {
-                auto path = request.request_uri().path();
-                if (path == "/KeygenApi/generate") {
-                    handle_generate(request);
-                } else if (path == "/KeygenApi/validate") {
-                    handle_validate(request);
-                } else {
-                    request.reply(status_codes::NotFound);
-                }
-            });
-    }
-
-    pplx::task<void> open() { return listener.open(); }
-    pplx::task<void> close() { return listener.close(); }
-};
+      }
+      catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        return 1;
+      }
+    
+    return 0;
+}
