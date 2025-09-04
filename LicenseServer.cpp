@@ -1,4 +1,5 @@
 #include <iostream>
+#include <thread>
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
 #include <pqxx/pqxx>
@@ -18,6 +19,8 @@ class LicenseServer {
   private:
     http_listener listener;
     std::string db_connection_string;
+    std::string redis_host;
+    int redis_port;
 
     std::string generate_license_key(const std::string& product_id, const std::string& user_id) {
         boost::uuids::uuid uuid = boost::uuids::random_generator()();
@@ -211,18 +214,12 @@ class LicenseServer {
     }
 
     pplx::task<void> open() { 
-        std::cout << "Starting server on port 8080..." << std::endl;
+        std::cout << "Starting server on port 8088..." << std::endl;
         return listener.open(); 
     }
     
     pplx::task<void> close() { 
         std::cout << "Stopping server..." << std::endl;
         return listener.close(); 
-    }
-
-    // Функция для получения переменных окружения с значениями по умолчанию
-    std::string get_env(const std::string& key, const std::string& default_value) {
-      const char* value = std::getenv(key.c_str());
-      return value ? value : default_value;
     }
 };

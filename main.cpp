@@ -1,5 +1,11 @@
 #include "LicenseServer.cpp"
 
+// Функция для получения переменных окружения с значениями по умолчанию
+std::string get_env(const std::string& key, const std::string& default_value) {
+  const char* value = std::getenv(key.c_str());
+  return value ? value : default_value;
+}
+
 int main(){
   try {
         std::cout << "Initializing License Server..." << std::endl;
@@ -10,7 +16,6 @@ int main(){
         std::string db_name = get_env("DB_NAME", "licenses");
         std::string db_user = get_env("DB_USER", "admin");
         std::string db_pass = get_env("DB_PASS", "secretpassword");
-        
         std::string redis_host = get_env("REDIS_HOST", "redis");
         std::string redis_port_str = get_env("REDIS_PORT", "6379");
         int redis_port = std::stoi(redis_port_str);
